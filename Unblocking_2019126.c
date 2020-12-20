@@ -42,7 +42,7 @@ struct my_semaphore sauceBowl2;
 // it has two parameters value and sema
 // sema is semaphore which has to initialize 
 // and value is the inital value of semapore
-struct my_semaphore initalize_sema (int value, struct my_semaphore *sema){
+struct my_semaphore initalize_semaphore (int value, struct my_semaphore *sema){
     // allocating memoery using malloc
     sema = (struct my_semaphore *)malloc(sizeof(struct my_semaphore));
     sema->value = value;
@@ -59,16 +59,13 @@ struct my_semaphore initalize_sema (int value, struct my_semaphore *sema){
 void signal (struct my_semaphore *sema){
 
 
-    // this is for locking the semaohore
+     // this is for locking the semaohore
     // this will not allow access to more than one thread
-    pthread_mutex_lock(&(sema->mutex));
-
+    while( pthread_mutex_trylock(&(sema->mutex))!=0);
+        
     // increasing the semaphore value
     sema->value++;
     
-    if(sema->value <= 0) {
-            pthread_cond_signal(&(sema->wait));
-    }
 
     // this is for unlocking the semaphore
     pthread_mutex_unlock(&(sema->mutex));
@@ -83,17 +80,14 @@ void signal (struct my_semaphore *sema){
 void wait (struct my_semaphore *sema){
 
 
-    // this is for locking the semaohore
-    // this will not allow access to more than one thread
-    pthread_mutex_lock(&(sema->mutex));
+    while (sema->value<=0);
 
+     // this is for locking the semaohore
+    // this will not allow access to more than one thread
+    while( pthread_mutex_trylock(&(sema->mutex))!=0);
     // decreasing the semaphore value
     sema->value--;
-
-    // if value less than 0 then thread should wait
-    if(sema->value < 0) {
-        pthread_cond_wait(&(sema->wait),&(sema->mutex));
-    }
+    
 
     // this is for unlocking the semaphore
     pthread_mutex_unlock(&(sema->mutex));
@@ -128,11 +122,11 @@ int main(){
 
     // calling initalize_semaphore function to initialize all semaphores
     // initialzing value will be 1 beacuse at a time only one thread can access them
-    sauceBowl1= initalize_sema(1, &sauceBowl1);
-    sauceBowl2 = initalize_sema(1, &sauceBowl2);
+    sauceBowl1= initalize_semaphore(1, &sauceBowl1);
+    sauceBowl2 = initalize_semaphore(1, &sauceBowl2);
     for (int i = 0; i < k; i++)
     {
-        forks[i]=initalize_sema(1, &forks[i]);
+        forks[i]=initalize_semaphore(1, &forks[i]);
     }
     
     // calling thread_create function
@@ -140,8 +134,8 @@ int main(){
 
     // calling thread_join function;
     thread_join();
-	
-    return 0;	
+    
+    return 0;   
 }
 
 
@@ -154,7 +148,7 @@ void thread_create(){
     {
 
         pthread_create(&philosopheres[i], NULL,(void *)philospher, (int *)i);
-    }	
+    }   
 
 }
 
@@ -179,56 +173,36 @@ void thread_join(){
 void* philospher(int i) 
 { 
     int true = 1;
-
-    //infinte loop
     while (true)
     {
-        
+        // true--;
+        printf("Philosopher %d is thinking\n",i+1);
+        // left fork
+        // struct my_semaphore left = forks[i];
+        // // right fork
+        // struct my_semaphore right = forks[(i+1)%k];
 
-
-        printf("Philosopher %d is thinking\n", i + 1);
-
-
-
-
-        // taking left and right fork
-        // this condition is used to prevent it from special condition of deadlock 
-        // i.e. what if all the philosophers take there left fork then no one will be able to take there right fork
-        // to prevent our code from above deadlock we simply take right fork first for our kth philosopher.
         if(i==k-1){
-            wait(& forks[(i+1)%k]);
             wait(&forks[i]);
+            wait(&forks[(i+1)%k]);
         }
         else{
-             wait(&forks[i]);
              wait(&forks[(i+1)%k]);
+             wait(&forks[i]);
 
         }
 
-
-        // taking bowl 1 first and then bowl 2
         wait(&sauceBowl1);
         wait(&sauceBowl2);
 
 
         printf("Philosopher %d eats using forks %d and %d.\n",i+1, i+1, (i+1)%k +1);
-        
-
-        sleep(2);
-
-
+        sleep(1);
         printf("Philosopher %d finished eating\n", i+1);
 
-
-
-        // putting bowl 1 and bowl 2
         signal(&sauceBowl1);
         signal(&sauceBowl2);
-        
-
-
-        // putting left and right fork
-        if(i==k-1){
+         if(i==k-1){
             signal(&forks[i]);
             signal(&forks[(i+1)%k]);
         }
@@ -238,7 +212,8 @@ void* philospher(int i)
 
         }
 
-
     }
 
-} 
+
+
+}
